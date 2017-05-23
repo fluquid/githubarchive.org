@@ -2,7 +2,7 @@ require 'log4r'
 require 'yajl'
 require 'digest'
 require 'em-http'
-require 'em-stathat'
+#require 'em-stathat'
 
 include EM
 
@@ -10,10 +10,12 @@ include EM
 ## Setup
 ##
 
+=begin
 StatHat.config do |c|
   c.ukey  = ENV['STATHATKEY']
   c.email = 'ilya@igvita.com'
 end
+=end
 
 @log = Log4r::Logger.new('github')
 @log.add(Log4r::StdoutOutputter.new('console', {
@@ -36,6 +38,7 @@ EM.run do
   @latest = []
   @latest_key = lambda { |e| "#{e['id']}" }
   @clean = lambda do |h|
+=begin
     if email = h.delete('email')
       name, host = email.split("@")
       h['email'] = [Digest::SHA1.hexdigest(name), host].compact.join("@")
@@ -44,6 +47,7 @@ EM.run do
       @clean.call(v) if v.is_a? Hash
       v.each {|e| @clean.call(e)} if v.is_a? Array
     end
+=end
   end
 
   process = Proc.new do
@@ -52,7 +56,7 @@ EM.run do
         :connect_timeout => 5
       }).get({
       :head => {
-        'user-agent' => 'githubarchive.org',
+        'user-agent' => 'githubarchive_codinguncut',
         'Authorization' => 'token ' + ENV['GITHUB_TOKEN']
       }
     })
@@ -88,7 +92,7 @@ EM.run do
           @log.info "Missed records.."
         end
 
-        StatHat.new.ez_count('Github Events', new_events.size)
+        #StatHat.new.ez_count('Github Events', new_events.size)
 
       rescue Exception => e
         @log.error "Processing exception: #{e}, #{e.backtrace.first(5)}"
