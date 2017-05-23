@@ -3,7 +3,7 @@
 fork of https://github.com/igrigorik/githubarchive.org.
 
 - removed `bigquery` folder
-- removed email hashing in `crawler`
+- minor modifications in `crawler` to run outside heroku
 
 ## Getting Started
 - `cd crawler`
