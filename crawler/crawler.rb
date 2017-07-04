@@ -2,6 +2,7 @@ require 'log4r'
 require 'yajl'
 require 'digest'
 require 'em-http'
+require 'zlib'
 #require 'em-stathat'
 
 include EM
@@ -26,8 +27,14 @@ end
 ## Crawler
 ##
 
+@file = nil
+@rawfile = nil
 EM.run do
   stop = Proc.new do
+    if !@rawfile.nil?
+      @file.close
+      @rawfile.close
+    end
     puts "Terminating crawler"
     EM.stop
   end
@@ -41,7 +48,9 @@ EM.run do
     if email = h.delete('email')
       name, host = email.split("@")
       h['email'] = email
-      h['email_hash'] = [Digest::SHA1.hexdigest(name), host].compact.join("@")
+      if !name.nil? and !host.nil?
+          h['email_hash'] = [Digest::SHA1.hexdigest(name), host].compact.join("@")
+      end
     end
     h.each_value do |v|
       @clean.call(v) if v.is_a? Hash
@@ -69,15 +78,17 @@ EM.run do
         @latest = urls
         new_events.sort_by {|e| [Time.parse(e['created_at']), e['id']] }.each do |event|
           timestamp = Time.parse(event['created_at']).strftime('%Y-%m-%d-%-k')
-          archive = "data/#{timestamp}.json"
+          archive = "data/#{timestamp}.json.gz"
 
-          if @file.nil? || (archive != @file.to_path)
-            if !@file.nil?
-              @log.info "Rotating archive. Current: #{@file.to_path}, New: #{archive}"
+          if @rawfile.nil? || (archive != @rawfile.to_path)
+            if !@rawfile.nil?
+              @log.info "Rotating archive. Current: #{@rawfile.to_path}, New: #{archive}"
               @file.close
+              @rawfile.close
             end
 
-            @file = File.new(archive, "a+")
+            @rawfile = File.new(archive, "a+")
+            @file = Zlib::GzipWriter.new(@rawfile)
           end
 
           @file.puts(Yajl::Encoder.encode(@clean.call(event)))
@@ -85,7 +96,8 @@ EM.run do
 
         remaining = req.response_header.raw['X-RateLimit-Remaining']
         reset = Time.at(req.response_header.raw['X-RateLimit-Reset'].to_i)
-        @log.info "Found #{new_events.size} new events: #{new_events.collect(&@latest_key)}, API: #{remaining}, reset: #{reset}"
+        #@log.info "Found #{new_events.size} new events: #{new_events.collect(&@latest_key)}, API: #{remaining}, reset: #{reset}"
+        @log.info "Found #{new_events.size} new events, API: #{remaining}, reset: #{reset}"
 
         if new_events.size >= 100
           @log.info "Missed records.."
